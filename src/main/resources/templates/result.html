@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detection Results - Fake Job Detector</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" th:href="@{/style.css}">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+        <a class="navbar-brand" th:href="@{/dashboard}">
+            <i class="fas fa-shield-alt me-2"></i>Job Fraud Detector
+        </a>
+    </div>
+</nav>
+
+<main class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg mb-4">
+                <div class="card-header text-center text-white"
+                     th:classappend="${score != null and score < 0.3} ? ' bg-success' : (${score != null and score < 0.7} ? ' bg-warning' : ' bg-danger')">
+                    <h3 class="mb-0" th:if="${score != null and score < 0.3}"><i class="fas fa-check-circle me-2"></i>Job Appears Safe</h3>
+                    <h3 class="mb-0" th:if="${score != null and score >= 0.3 and score < 0.7}"><i class="fas fa-exclamation-triangle me-2"></i>Suspicious Activity Detected</h3>
+                    <h3 class="mb-0" th:if="${score != null and score >= 0.7}"><i class="fas fa-times-circle me-2"></i>High Fraud Risk</h3>
+                </div>
+
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <div class="position-relative d-inline-block">
+                            <canvas id="riskGauge" width="200" height="200"></canvas>
+                            <div class="position-absolute top-50 start-50 translate-middle text-center" style="margin-top: 1.5rem;">
+                                <h2 class="mb-0 fw-bold"
+                                    th:classappend="${score != null and score < 0.3} ? ' text-success' : (${score != null and score < 0.7} ? ' text-warning' : ' text-danger')"
+                                    th:text="${score != null ? #numbers.formatDecimal(score * 100, 1, 1) + '%' : '0.0%'}">48.0%</h2>
+                                <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.5px;">Total Risk Score</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-danger text-start mt-4" th:if="${outcomeWarning != null}">
+                        <h5 class="alert-heading mb-2">
+                            <i class="fas fa-circle-exclamation me-2"></i>Community Confirmed Outcome Warning
+                        </h5>
+                        <p class="mb-1" th:text="${outcomeWarning.message}">Community warning message</p>
+                        <small>
+                            Confirmed scam reports:
+                            <strong th:text="${outcomeWarning.scamReportCount}">0</strong>
+                            <span class="mx-2">|</span>
+                            Confirmed legitimate reports:
+                            <strong th:text="${outcomeWarning.legitReportCount}">0</strong>
+                        </small>
+                    </div>
+
+                    <div class="card mt-4 border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Risk Analysis Breakdown</h5>
+                        </div>
+                        <div class="card-body text-start">
+                            <!-- ML Score -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span><i class="fas fa-robot me-2"></i>ML Model Score (40%)</span>
+                                    <strong th:text="${mlScore != null ? #numbers.formatDecimal(mlScore * 100, 1, 1) + '%' : 'N/A'}">50.0%</strong>
+                                </div>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar"
+                                         th:classappend="${mlScore != null and mlScore < 0.3} ? ' bg-success' : (${mlScore != null and mlScore < 0.7} ? ' bg-warning' : ' bg-danger')"
+                                         th:style="'width:' + (${mlScore != null ? mlScore * 100 : 0}) + '%'">
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Review Score -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span><i class="fas fa-comments me-2"></i>Review Reputation Score (40%)</span>
+                                    <strong th:text="${reviewRiskScore != null ? #numbers.formatDecimal(reviewRiskScore * 100, 1, 1) + '%' : 'N/A'}">35.0%</strong>
+                                </div>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar"
+                                         th:classappend="${reviewRiskScore != null and reviewRiskScore < 0.3} ? ' bg-success' : (${reviewRiskScore != null and reviewRiskScore < 0.7} ? ' bg-warning' : ' bg-danger')"
+                                         th:style="'width:' + (${reviewRiskScore != null ? reviewRiskScore * 100 : 0}) + '%'">
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- AI Score -->
+                            <div class="mb-3" th:if="${groqResult != null}">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span><i class="fas fa-brain me-2"></i>AI Verification (20%)</span>
+                                    <strong th:text="${#numbers.formatDecimal(groqResult.riskScore * 100, 1, 1)} + '%'">30.0%</strong>
+                                </div>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar"
+                                         th:classappend="${groqResult.riskScore < 0.3} ? ' bg-success' : (${groqResult.riskScore < 0.7} ? ' bg-warning' : ' bg-danger')"
+                                         th:style="'width:' + (${groqResult.riskScore * 100}) + '%'">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-4 border-dark" th:if="${evidenceTrail != null and !#lists.isEmpty(evidenceTrail)}">
+                        <div class="card-header bg-dark text-white">
+                            <h5 class="mb-0"><i class="fas fa-list-check me-2"></i>Evidence Trail</h5>
+                        </div>
+                        <div class="card-body text-start">
+                            <div class="accordion" id="evidenceAccordion">
+                                <div class="accordion-item" th:each="item, stat : ${evidenceTrail}">
+                                    <h2 class="accordion-header" th:id="'evidenceHeading' + ${stat.index}">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                                th:data-bs-target="'#evidenceCollapse' + ${stat.index}"
+                                                aria-expanded="false"
+                                                th:aria-controls="'evidenceCollapse' + ${stat.index}">
+                                            <span class="me-2">
+                                                <i class="fas fa-robot" th:if="${item.signalCategory != null and item.signalCategory.name() == 'ML'}"></i>
+                                                <i class="fas fa-file-signature" th:if="${item.signalCategory != null and item.signalCategory.name() == 'FORENSICS'}"></i>
+                                                <i class="fas fa-globe" th:if="${item.signalCategory != null and item.signalCategory.name() == 'DOMAIN_AGE'}"></i>
+                                                <i class="fas fa-comments" th:if="${item.signalCategory != null and item.signalCategory.name() == 'REVIEW'}"></i>
+                                                <i class="fas fa-brain" th:if="${item.signalCategory != null and item.signalCategory.name() == 'GROQ_AI'}"></i>
+                                                <i class="fas fa-users" th:if="${item.signalCategory != null and item.signalCategory.name() == 'EMPLOYEE_MISMATCH'}"></i>
+                                                <i class="fas fa-circle-info" th:if="${item.signalCategory == null}"></i>
+                                            </span>
+                                            <span class="fw-semibold flex-grow-1" th:text="${item.flag}">Evidence item</span>
+                                            <span class="badge bg-light text-dark border ms-2" th:text="${item.signalCategory != null ? item.signalCategory : 'GENERAL'}">ML</span>
+                                            <span class="badge bg-warning text-dark ms-2"
+                                                  th:if="${item.weightContribution != null}"
+                                                  th:text="${#numbers.formatDecimal(item.weightContribution * 100, 1, 1)} + '% weight'">0.0% weight</span>
+                                        </button>
+                                    </h2>
+                                    <div th:id="'evidenceCollapse' + ${stat.index}" class="accordion-collapse collapse"
+                                         th:aria-labelledby="'evidenceHeading' + ${stat.index}"
+                                         data-bs-parent="#evidenceAccordion">
+                                        <div class="accordion-body">
+                                            <p class="mb-2"><strong>Evidence:</strong> <span th:text="${item.evidence}">Evidence text</span></p>
+                                            <p class="mb-2 text-muted"><strong>Explanation:</strong> <span th:text="${item.explanation}">Explanation</span></p>
+                                            <a th:if="${item.sourceUrl != null and !#strings.isEmpty(item.sourceUrl)}"
+                                               th:href="${item.sourceUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-arrow-up-right-from-square me-1"></i>Open Source
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-4 border-secondary" th:if="${reviewResult != null}">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0"><i class="fas fa-star-half-alt me-2"></i>Review Reputation Analysis</h5>
+                        </div>
+                        <div class="card-body text-start">
+                            <p class="lead mb-3" th:text="${reviewResult.summary}">Review summary...</p>
+                            <div class="row text-center mb-3">
+                                <div class="col-md-6 mb-2">
+                                    <div class="border rounded p-3 bg-light">
+                                        <div class="text-success fw-bold fs-4" th:text="${reviewResult.positiveCount}">0</div>
+                                        <div class="small text-muted">Positive Review Signals</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="border rounded p-3 bg-light">
+                                        <div class="text-danger fw-bold fs-4" th:text="${reviewResult.negativeCount}">0</div>
+                                        <div class="small text-muted">Negative Review Signals</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div th:if="${reviewResult.sources != null and !#lists.isEmpty(reviewResult.sources)}">
+                                <h6 class="border-bottom pb-2"><i class="fas fa-link me-2"></i>Review Evidence Sources</h6>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item px-0" th:each="source : ${reviewResult.sources}">
+                                        <a th:href="${source.url}" target="_blank" class="text-decoration-none" th:text="${source.title}">Source</a>
+                                        <span class="badge bg-light text-dark border ms-2" th:text="${source.platform}">Platform</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-4 border-warning" th:if="${forensicsResult != null}">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0"><i class="fas fa-file-signature me-2"></i>Document Forensics Analysis</h5>
+                        </div>
+                        <div class="card-body text-start">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="fw-semibold">Forensics Score</span>
+                                <strong th:text="${#numbers.formatDecimal(forensicsResult.forensicsScore * 100, 1, 1)} + '%'">0.0%</strong>
+                            </div>
+                            <div class="progress mb-3" style="height: 20px;">
+                                <div class="progress-bar"
+                                     th:classappend="${forensicsResult.forensicsScore < 0.3} ? ' bg-success' : (${forensicsResult.forensicsScore < 0.7} ? ' bg-warning' : ' bg-danger')"
+                                     th:style="'width:' + (${forensicsResult.forensicsScore * 100}) + '%'">
+                                </div>
+                            </div>
+                            <p class="text-muted" th:if="${forensicsResult.flags == null or #lists.isEmpty(forensicsResult.flags)}">
+                                No strong document-structure forgery signals were detected.
+                            </p>
+                            <div class="table-responsive" th:if="${forensicsResult.flags != null and !#lists.isEmpty(forensicsResult.flags)}">
+                                <table class="table table-sm table-bordered mt-2">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 25%;">Forensic Check</th>
+                                            <th style="width: 40%;">Evidence</th>
+                                            <th style="width: 35%;">Why it matters</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="flag : ${forensicsResult.flags}">
+                                            <td class="fw-bold text-warning-emphasis"><i class="fas fa-triangle-exclamation me-1"></i><span th:text="${flag.flag}">Flag</span></td>
+                                            <td th:text="${flag.evidence}">Evidence</td>
+                                            <td class="text-muted small" th:text="${flag.explanation}">Explanation</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Groq AI Section -->
+                    <div class="card mt-4 border-danger" th:if="${groqResult != null}">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0"><i class="fas fa-microchip me-2"></i>AI Deep Verification Report</h5>
+                        </div>
+                        <div class="card-body text-start">
+                            <p class="lead mb-3" th:text="${groqResult.summary}">Summary of findings...</p>
+                            
+                            <!-- Red Flags Table -->
+                            <div class="mb-4" th:if="${groqResult.redFlags != null and !#lists.isEmpty(groqResult.redFlags)}">
+                                <h6 class="border-bottom pb-2"><i class="fas fa-search-plus me-2 text-danger"></i>Detailed Red-Flag Analysis:</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mt-2">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width: 25%;">Red-Flag Factor</th>
+                                                <th style="width: 40%;">Evidence in Post</th>
+                                                <th style="width: 35%;">Why it's suspicious</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:each="check : ${groqResult.redFlags}">
+                                                <td class="fw-bold text-danger"><i class="fas fa-flag-checkered me-1"></i><span th:text="${check.flag}">Flag</span></td>
+                                                <td th:text="${check.evidence}">Evidence</td>
+                                                <td class="text-muted small"><span th:text="${check.explanation}">Explanation</span></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Scam Reports Table -->
+                            <div class="mb-2" th:if="${groqResult.scamReports != null and !#lists.isEmpty(groqResult.scamReports)}">
+                                <h6 class="border-bottom pb-2"><i class="fas fa-bullhorn me-2 text-danger"></i>Direct Links to Most Cited Reports:</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover border">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width: 5%;">#</th>
+                                                <th style="width: 75%;">Report Title / Source</th>
+                                                <th style="width: 20%;">Platform</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:each="report, stat : ${groqResult.scamReports}">
+                                                <td th:text="${stat.count}">1</td>
+                                                <td>
+                                                    <!-- Link to direct URL if valid, otherwise fallback to search -->
+                                                    <a th:if="${report.url != null and !#strings.isEmpty(report.url) and report.url != '#'}" 
+                                                       th:href="${report.url}" target="_blank" class="text-decoration-none">
+                                                        <span th:text="${report.title}">Title</span>
+                                                        <i class="fas fa-external-link-alt x-small ms-1 opacity-50"></i>
+                                                    </a>
+                                                    
+                                                    <!-- Fallback to Dynamic Search Link -->
+                                                    <a th:if="${(report.url == null or #strings.isEmpty(report.url) or report.url == '#') and !#strings.isEmpty(report.searchQuery)}"
+                                                       th:href="'https://www.google.com/search?q=' + ${#uris.escapeQueryParam(report.searchQuery)}" 
+                                                       target="_blank" class="text-decoration-none text-primary">
+                                                        <span th:text="${report.title}">Title</span>
+                                                        <i class="fas fa-search x-small ms-1 opacity-50"></i>
+                                                    </a>
+                                                    
+                                                    <span th:if="${#strings.isEmpty(report.url) and #strings.isEmpty(report.searchQuery)}" th:text="${report.title}">Title</span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge border text-dark bg-light font-monospace" th:text="${report.platform}">Reddit</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-4 border-info" th:if="${companyInfo != null and companyInfo.company != null}">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-building me-2"></i>Company Verification</h5>
+                        </div>
+                        <div class="card-body text-start">
+                            <p><strong>Detected Company:</strong> <span th:text="${companyInfo.company}">Company Name</span></p>
+                            <p th:if="${companyInfo.website != null}">
+                                <i class="fas fa-globe me-1"></i>
+                                <a th:href="${companyInfo.website}" target="_blank" class="text-decoration-none">Official Website</a>
+                            </p>
+                            <p th:if="${companyInfo.linkedin != null}">
+                                <i class="fab fa-linkedin me-1"></i>
+                                <a th:href="${companyInfo.linkedin}" target="_blank" class="text-decoration-none">LinkedIn Page</a>
+                            </p>
+                            <p class="text-danger" th:if="${companyInfo.linkedin == null}">LinkedIn page not found</p>
+                            <small class="text-muted">Always manually verify company legitimacy before applying.</small>
+                        </div>
+                    </div>
+
+                    <div class="row my-4 text-center">
+                        <div class="col-md-4">
+                            <div class="p-3 rounded" th:classappend="${score != null and score < 0.3} ? ' bg-success text-white' : ' bg-light text-muted'">
+                                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                                <h6>Safe (0-30%)</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 rounded" th:classappend="${score != null and score >= 0.3 and score < 0.7} ? ' bg-warning text-white' : ' bg-light text-muted'">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                                <h6>Suspicious (30-70%)</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 rounded" th:classappend="${score != null and score >= 0.7} ? ' bg-danger text-white' : ' bg-light text-muted'">
+                                <i class="fas fa-times-circle fa-2x mb-2"></i>
+                                <h6>High Risk (70-100%)</h6>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="card mt-4 border-success text-start" th:if="${reportCompanyName != null and !#strings.isEmpty(reportCompanyName)}">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>Did you find out what happened with this?</h5>
+                        </div>
+                        <div class="card-body">
+                            <form th:action="@{/api/reports}" method="post">
+                                <input type="hidden" name="companyName" th:value="${reportCompanyName}">
+                                <input type="hidden" name="companyEmailDomain" th:value="${reportCompanyEmailDomain}">
+                                <input type="hidden" name="phoneNumber" th:value="${reportPhoneNumber}">
+
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold" for="confirmedStatus">Confirmed outcome</label>
+                                        <select class="form-select" id="confirmedStatus" name="confirmedStatus" required>
+                                            <option value="CONFIRMED_SCAM">Confirmed scam</option>
+                                            <option value="CONFIRMED_LEGITIMATE">Confirmed legitimate</option>
+                                            <option value="UNSURE">Still unsure</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="evidenceText">Evidence note</label>
+                                        <input class="form-control" id="evidenceText" name="evidenceText"
+                                               maxlength="1000"
+                                               placeholder="Example: asked for payment, confirmed by official HR, no reply from domain">
+                                    </div>
+                                    <div class="col-md-2 d-grid">
+                                        <button class="btn btn-success" type="submit">
+                                            <i class="fas fa-paper-plane me-1"></i>Submit
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    Reports are reviewed by an admin before they affect future warnings.
+                                </small>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="text-start">
+                        <h6><i class="fas fa-file-alt me-2"></i>Analyzed Job Description</h6>
+                        <div class="p-3 bg-light border rounded">
+                            <p class="text-muted small mb-0" th:text="${jobText}">Job text preview...</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-5">
+                        <a th:href="@{/dashboard}" class="btn btn-outline-primary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    const score = /*[[${score}]]*/ 0;
+    const reviewEvidenceTypes = /*[[${reviewResult != null ? reviewResult.evidenceTypes : null}]]*/ null;
+    const reviewEvidenceDetails = /*[[${reviewResult != null ? reviewResult.evidenceDetails : null}]]*/ null;
+    const ctx = document.getElementById('riskGauge').getContext('2d');
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [score * 100, 100 - (score * 100)],
+                backgroundColor: [
+                    score < 0.3 ? '#198754' : (score < 0.7 ? '#ffc107' : '#dc3545'),
+                    '#e9ecef'
+                ],
+                borderWidth: 0,
+                circumference: 180,
+                rotation: 270
+            }]
+        },
+        options: {
+            cutout: '80%',
+            responsive: false,
+            plugins: {
+                tooltip: { enabled: false },
+                legend: { display: false }
+            }
+        }
+    });
+
+    if (reviewEvidenceTypes) {
+        console.group('Review Evidence Types');
+        Object.entries(reviewEvidenceTypes).forEach(([platform, type]) => {
+            console.log(`${platform}: ${type}`);
+        });
+        console.groupEnd();
+    }
+
+    if (Array.isArray(reviewEvidenceDetails)) {
+        const fallbackEvidence = reviewEvidenceDetails.filter(item => item.evidenceType === 'search-snippet-fallback');
+        if (fallbackEvidence.length > 0) {
+            console.group('Review Fallback Content');
+            fallbackEvidence.forEach(item => {
+                console.group(`${item.platform}: ${item.title || item.url || 'Fallback Snippet'}`);
+                console.log(item.content || 'No fallback snippet content available.');
+                if (item.url) {
+                    console.log(`URL: ${item.url}`);
+                }
+                console.groupEnd();
+            });
+            console.groupEnd();
+        } else {
+            console.log('Review Fallback Content: No fallback snippets were used.');
+        }
+    }
+</script>
+</body>
+</html>
