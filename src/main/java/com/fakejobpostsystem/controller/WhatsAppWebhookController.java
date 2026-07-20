@@ -122,6 +122,7 @@ public class WhatsAppWebhookController {
         String sender = message.path("from").asText("");
         String messageId = message.path("id").asText("");
         String type = message.path("type").asText("");
+        System.out.println("WhatsApp webhook message received: type=" + type + ", from=" + sender + ", id=" + messageId);
         if (sender.isBlank()) {
             return;
         }
@@ -138,10 +139,15 @@ public class WhatsAppWebhookController {
                 text = message.path("text").path("body").asText("").trim();
                 sourceType = "whatsapp_text";
             } else if ("image".equals(type)) {
+                sendReplyQuietly(sender, "Image received. Reading the offer letter and checking risk now...");
                 text = extractTextFromImageMessage(message);
                 sourceType = "whatsapp_image";
+            } else if ("document".equals(type) && isImageDocument(message)) {
+                sendReplyQuietly(sender, "Image document received. Reading it and checking risk now...");
+                text = extractTextFromDocumentMessage(message);
+                sourceType = "whatsapp_image";
             } else {
-                sendReplyQuietly(sender, "Please send a suspicious job message as text or an offer-letter image.");
+                sendReplyQuietly(sender, "Please send a suspicious job message as text or an offer-letter image/photo.");
                 return;
             }
 
@@ -162,15 +168,34 @@ public class WhatsAppWebhookController {
 
     private String extractTextFromImageMessage(JsonNode message) throws Exception {
         String mediaId = message.path("image").path("id").asText("");
+        return extractTextFromMedia(mediaId);
+    }
+
+    private String extractTextFromDocumentMessage(JsonNode message) throws Exception {
+        String mediaId = message.path("document").path("id").asText("");
+        return extractTextFromMedia(mediaId);
+    }
+
+    private String extractTextFromMedia(String mediaId) throws Exception {
         Path mediaPath = null;
         try {
+            System.out.println("Downloading WhatsApp media id=" + mediaId);
             mediaPath = whatsAppCloudApiService.downloadMedia(mediaId);
-            return ocrService.extractText(mediaPath).trim();
+            long bytes = Files.size(mediaPath);
+            System.out.println("WhatsApp media downloaded: " + mediaPath + " (" + bytes + " bytes)");
+            String extractedText = ocrService.extractText(mediaPath).trim();
+            System.out.println("WhatsApp OCR extracted characters: " + extractedText.length());
+            return extractedText;
         } finally {
             if (mediaPath != null) {
                 Files.deleteIfExists(mediaPath);
             }
         }
+    }
+
+    private boolean isImageDocument(JsonNode message) {
+        String mimeType = message.path("document").path("mime_type").asText("").toLowerCase();
+        return mimeType.startsWith("image/");
     }
 
     private Prediction saveWhatsAppPrediction(

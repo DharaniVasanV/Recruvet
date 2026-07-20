@@ -38,6 +38,29 @@
     </div>
 
     <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card bg-success text-white shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-user-check fa-2x mb-2"></i>
+                    <h3 th:text="${sharingStudentCount ?: 0}">0</h3>
+                    <p class="mb-0">Students Sharing With Placement Cell</p>
+                    <small>Only students who opted in are counted.</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card bg-warning text-dark shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-bell fa-2x mb-2"></i>
+                    <h3 th:text="${sharedSubmissionCount ?: 0}">0</h3>
+                    <p class="mb-0">Student Shared Alerts</p>
+                    <small>These are student analyses visible to this institution.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
         <div class="col-lg-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-primary text-white">
@@ -94,6 +117,65 @@
                     <p class="text-muted mb-0" th:if="${batchJobs == null or #lists.isEmpty(batchJobs)}">No batch jobs submitted yet.</p>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0"><i class="fas fa-user-graduate me-2"></i>Student Shared Alerts</h5>
+            <span class="small">Visible only from opted-in students</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive" th:if="${sharedStudentPredictions != null and !#lists.isEmpty(sharedStudentPredictions)}">
+                <table class="table table-hover align-middle">
+                    <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Student</th>
+                        <th>Company</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Source</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="posting : ${sharedStudentPredictions}"
+                        th:classappend="${repeatOffendersByPrediction.containsKey(posting.id)} ? ' table-danger'">
+                        <td th:text="${T(com.fakejobpostsystem.controller.DashboardController).formatTimestamp(posting.timestamp)}">time</td>
+                        <td th:text="${posting.user != null ? posting.user.email : 'Shared student'}">student@example.com</td>
+                        <td>
+                            <strong th:text="${posting.companyName ?: 'Unknown Company'}">Company</strong>
+                            <span class="badge bg-danger ms-2"
+                                  th:if="${repeatOffendersByPrediction.containsKey(posting.id)}">
+                                Repeat offender:
+                                <span th:text="${repeatOffendersByPrediction.get(posting.id).scamReportCount}">3</span>
+                                reports
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${posting.score < 0.3} ? ' bg-success' : (${posting.score < 0.7} ? ' bg-warning text-dark' : ' bg-danger')"
+                                  th:text="${#numbers.formatDecimal(posting.score * 100, 1, 1)} + '%'">42.0%</span>
+                        </td>
+                        <td>
+                            <span th:if="${posting.score < 0.3}"><i class="fas fa-check-circle text-success"></i> Low Risk</span>
+                            <span th:if="${posting.score >= 0.3 and posting.score < 0.7}"><i class="fas fa-exclamation-triangle text-warning"></i> Suspicious</span>
+                            <span th:if="${posting.score >= 0.7}"><i class="fas fa-times-circle text-danger"></i> High Risk</span>
+                        </td>
+                        <td th:text="${posting.sourceType ?: 'student'}">student</td>
+                        <td>
+                            <a class="btn btn-outline-primary btn-sm" th:href="@{/view-prediction/{id}(id=${posting.id})}">
+                                <i class="fas fa-eye me-1"></i>View
+                            </a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted mb-0" th:if="${sharedStudentPredictions == null or #lists.isEmpty(sharedStudentPredictions)}">
+                No student has shared analyses with this placement cell yet.
+            </p>
         </div>
     </div>
 

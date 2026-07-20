@@ -34,6 +34,9 @@ public class User {
     @JoinColumn(name = "institution_id")
     private Institution institution;
 
+    @Column(name = "share_with_institution", nullable = false)
+    private boolean shareWithInstitution = false;
+
     public Long getId() {
         return id;
     }
@@ -80,5 +83,13 @@ public class User {
 
     public void setInstitution(Institution institution) {
         this.institution = institution;
+    }
+
+    public boolean isShareWithInstitution() {
+        return shareWithInstitution;
+    }
+
+    public void setShareWithInstitution(boolean shareWithInstitution) {
+        this.shareWithInstitution = shareWithInstitution;
     }
 }

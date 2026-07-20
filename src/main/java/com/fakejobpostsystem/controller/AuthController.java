@@ -55,6 +55,7 @@ public class AuthController {
             @RequestParam("password") String password,
             @RequestParam(name = "accountType", defaultValue = "USER") String accountType,
             @RequestParam(name = "institutionId", required = false) Long institutionId,
+            @RequestParam(name = "shareWithInstitution", defaultValue = "false") boolean shareWithInstitution,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes) {
         String normalizedEmail = email.trim().toLowerCase();
@@ -82,6 +83,16 @@ public class AuthController {
             }
             user.setInstitution(institution);
             user.setRole("ROLE_TPO");
+        } else if (institutionId != null) {
+            var institution = institutionRepository.findById(institutionId).orElse(null);
+            if (institution == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Please select a valid institution.");
+                return "redirect:/signup";
+            }
+            user.setInstitution(institution);
+            user.setShareWithInstitution(shareWithInstitution);
+        } else {
+            user.setShareWithInstitution(false);
         }
         userRepository.save(user);
 

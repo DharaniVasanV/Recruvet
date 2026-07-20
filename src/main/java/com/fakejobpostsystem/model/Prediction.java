@@ -109,6 +109,9 @@ public class Prediction {
     @Column(name = "public_token", unique = true, length = 64)
     private String publicToken;
 
+    @Column(name = "shared_with_institution", nullable = false)
+    private boolean sharedWithInstitution = false;
+
     @PrePersist
     public void prePersist() {
         if (timestamp == null) {
@@ -349,5 +352,13 @@ public class Prediction {
 
     public void setPublicToken(String publicToken) {
         this.publicToken = publicToken;
+    }
+
+    public boolean isSharedWithInstitution() {
+        return sharedWithInstitution;
+    }
+
+    public void setSharedWithInstitution(boolean sharedWithInstitution) {
+        this.sharedWithInstitution = sharedWithInstitution;
     }
 }

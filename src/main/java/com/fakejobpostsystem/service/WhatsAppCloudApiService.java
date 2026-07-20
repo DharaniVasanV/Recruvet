@@ -59,7 +59,8 @@ public class WhatsAppCloudApiService {
 
         HttpResponse<byte[]> response = httpClient.send(mediaRequest, HttpResponse.BodyHandlers.ofByteArray());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("Failed to download WhatsApp media: HTTP " + response.statusCode());
+            String bodyPreview = response.body() == null ? "" : new String(response.body());
+            throw new IOException("Failed to download WhatsApp media: HTTP " + response.statusCode() + " " + bodyPreview);
         }
 
         Path tempFile = Files.createTempFile("whatsapp-media-", extensionFor(mimeType));
@@ -111,9 +112,11 @@ public class WhatsAppCloudApiService {
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("Failed to fetch WhatsApp media metadata: HTTP " + response.statusCode());
+            throw new IOException("Failed to fetch WhatsApp media metadata: HTTP " + response.statusCode() + " " + response.body());
         }
-        return objectMapper.readTree(response.body());
+        JsonNode metadata = objectMapper.readTree(response.body());
+        System.out.println("WhatsApp media metadata fetched for id=" + mediaId + ", mime=" + metadata.path("mime_type").asText(""));
+        return metadata;
     }
 
     private String extensionFor(String mimeType) {

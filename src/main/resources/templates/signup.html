@@ -54,7 +54,7 @@
                                 <option value="TPO">College Placement Cell / TPO</option>
                             </select>
                         </div>
-                        <div class="mb-3" id="institutionGroup" style="display: none;">
+                        <div class="mb-3" id="institutionGroup">
                             <label for="institutionId" class="form-label">Verified Institution</label>
                             <select class="form-select" id="institutionId" name="institutionId">
                                 <option value="">Select institution</option>
@@ -64,7 +64,14 @@
                                     Institution
                                 </option>
                             </select>
-                            <div class="form-text">Your email must match the institution domain.</div>
+                            <div class="form-text" id="institutionHelp">Optional for students. Required for TPO accounts.</div>
+                        </div>
+                        <div class="mb-3 form-check" id="shareGroup">
+                            <input class="form-check-input" type="checkbox" id="shareWithInstitution" name="shareWithInstitution" value="true">
+                            <label class="form-check-label" for="shareWithInstitution">
+                                Share my future analyses with my college placement cell
+                            </label>
+                            <div class="form-text">Your TPO can see your shared scans only when this is enabled.</div>
                         </div>
                         <button type="submit" class="btn btn-success w-100 mb-3">
                             <i class="fas fa-user-plus me-2"></i>Create Account
@@ -92,8 +99,14 @@
 <script>
 const accountType = document.getElementById('accountType');
 const institutionGroup = document.getElementById('institutionGroup');
+const institutionHelp = document.getElementById('institutionHelp');
+const shareGroup = document.getElementById('shareGroup');
 function toggleInstitution() {
-    institutionGroup.style.display = accountType.value === 'TPO' ? 'block' : 'none';
+    institutionGroup.style.display = 'block';
+    shareGroup.style.display = accountType.value === 'TPO' ? 'none' : 'block';
+    institutionHelp.textContent = accountType.value === 'TPO'
+        ? 'Your email must match the institution domain.'
+        : 'Optional: select your college if you want TPO-visible sharing.';
 }
 accountType.addEventListener('change', toggleInstitution);
 toggleInstitution();

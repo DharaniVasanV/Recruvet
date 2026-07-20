@@ -27,7 +27,10 @@ import com.fakejobpostsystem.dto.ForensicsResult;
 import com.fakejobpostsystem.dto.RedFlagCheck;
 import com.fakejobpostsystem.dto.ReviewVerificationResult;
 import com.fakejobpostsystem.dto.Entities;
+import com.fakejobpostsystem.model.Institution;
+import com.fakejobpostsystem.repository.InstitutionRepository;
 import com.fakejobpostsystem.repository.PredictionRepository;
+import com.fakejobpostsystem.repository.UserRepository;
 import com.fakejobpostsystem.service.CurrentUserService;
 import com.fakejobpostsystem.service.DetectionService;
 import com.fakejobpostsystem.service.OutcomeReportService;
@@ -43,17 +46,23 @@ public class DashboardController {
             "Glassdoor", "Unavailable");
 
     private final PredictionRepository predictionRepository;
+    private final UserRepository userRepository;
+    private final InstitutionRepository institutionRepository;
     private final CurrentUserService currentUserService;
     private final DetectionService detectionService;
     private final OutcomeReportService outcomeReportService;
     private final ObjectMapper objectMapper;
 
-    public DashboardController(PredictionRepository predictionRepository, 
+    public DashboardController(PredictionRepository predictionRepository,
+                               UserRepository userRepository,
+                               InstitutionRepository institutionRepository,
                                CurrentUserService currentUserService, 
                                DetectionService detectionService,
                                OutcomeReportService outcomeReportService,
                                ObjectMapper objectMapper) {
         this.predictionRepository = predictionRepository;
+        this.userRepository = userRepository;
+        this.institutionRepository = institutionRepository;
         this.currentUserService = currentUserService;
         this.detectionService = detectionService;
         this.outcomeReportService = outcomeReportService;
@@ -71,7 +80,36 @@ public class DashboardController {
         }
         List<Prediction> predictions = predictionRepository.findTop10ByUser_IdOrderByTimestampDesc(user.getId());
         model.addAttribute("predictions", predictions);
+        model.addAttribute("institutions", institutionRepository.findAllByOrderByNameAsc());
+        model.addAttribute("selectedInstitutionId", user.getInstitution() == null ? null : user.getInstitution().getId());
+        model.addAttribute("shareWithInstitution", user.isShareWithInstitution());
         return "dashboard";
+    }
+
+    @PostMapping("/student/share-settings")
+    public String updateShareSettings(
+            Authentication authentication,
+            @RequestParam(name = "institutionId", required = false) Long institutionId,
+            @RequestParam(name = "shareWithInstitution", defaultValue = "false") boolean shareWithInstitution,
+            RedirectAttributes redirectAttributes) {
+        User user = currentUserService.requireUser(authentication);
+        if (!"ROLE_USER".equals(user.getRole())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+
+        Institution institution = null;
+        if (institutionId != null) {
+            institution = institutionRepository.findById(institutionId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid institution"));
+        }
+
+        user.setInstitution(institution);
+        user.setShareWithInstitution(institution != null && shareWithInstitution);
+        userRepository.save(user);
+        redirectAttributes.addFlashAttribute("successMessage", user.isShareWithInstitution()
+                ? "Your future analyses will be shared with your placement cell."
+                : "College sharing is turned off.");
+        return "redirect:/dashboard";
     }
 
     @PostMapping("/detect")
@@ -100,6 +138,10 @@ public class DashboardController {
 
             Prediction prediction = new Prediction();
             prediction.setUser(user);
+            if ("ROLE_USER".equals(user.getRole()) && user.getInstitution() != null && user.isShareWithInstitution()) {
+                prediction.setInstitution(user.getInstitution());
+                prediction.setSharedWithInstitution(true);
+            }
             prediction.setJobText(detectionService.preview(result.text()));
             prediction.setScore(result.score());
             prediction.setMlScore(result.mlScore());
@@ -174,11 +216,17 @@ public class DashboardController {
     public String viewPrediction(@PathVariable("predictionId") Long predictionId, Authentication authentication, Model model) {
         try {
             User user = currentUserService.requireUser(authentication);
-            Prediction prediction = "ROLE_TPO".equals(user.getRole()) && user.getInstitution() != null
-                    ? predictionRepository.findByIdAndInstitution_Id(predictionId, user.getInstitution().getId())
-                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND))
-                    : predictionRepository.findByIdAndUser_Id(predictionId, user.getId())
-                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+            Prediction prediction;
+            if ("ROLE_TPO".equals(user.getRole()) && user.getInstitution() != null) {
+                prediction = predictionRepository.findByIdAndInstitution_Id(predictionId, user.getInstitution().getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+                if (isStudentPredictionHiddenFromTpo(prediction)) {
+                    throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+                }
+            } else {
+                prediction = predictionRepository.findByIdAndUser_Id(predictionId, user.getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+            }
 
             String previewText = prediction.getJobText() != null ? prediction.getJobText() : "No text available";
 
@@ -201,6 +249,13 @@ public class DashboardController {
             e.printStackTrace();
             throw e;
         }
+    }
+
+    private boolean isStudentPredictionHiddenFromTpo(Prediction prediction) {
+        User owner = prediction.getUser();
+        return owner != null
+                && "ROLE_USER".equals(owner.getRole())
+                && (!prediction.isSharedWithInstitution() || !owner.isShareWithInstitution());
     }
 
     @GetMapping("/public/prediction/{publicToken}")

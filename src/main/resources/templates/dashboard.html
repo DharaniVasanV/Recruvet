@@ -113,6 +113,48 @@
         </div>
     </div>
 
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="fas fa-user-shield me-2"></i>College Sharing Privacy</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                If you want help from your placement cell, choose your college and allow sharing.
+                Your TPO will only see future analyses while this setting is enabled.
+            </p>
+            <form th:action="@{/student/share-settings}" method="post" class="row g-3 align-items-end">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <div class="col-md-6">
+                    <label for="institutionId" class="form-label">College / Institution</label>
+                    <select class="form-select" id="institutionId" name="institutionId">
+                        <option value="">Do not link a college</option>
+                        <option th:each="institution : ${institutions}"
+                                th:value="${institution.id}"
+                                th:selected="${selectedInstitutionId != null and selectedInstitutionId == institution.id}"
+                                th:text="${institution.name + ' (@' + institution.verifiedEmailDomain + ')'}">
+                            Institution
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="shareWithInstitution" name="shareWithInstitution" value="true"
+                               th:checked="${shareWithInstitution}">
+                        <label class="form-check-label" for="shareWithInstitution">
+                            Share future scans with my TPO
+                        </label>
+                    </div>
+                    <small class="text-muted">Turn this off anytime to hide shared scans from the TPO dashboard.</small>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-secondary w-100" type="submit">
+                        <i class="fas fa-save me-1"></i>Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card bg-info text-white">
