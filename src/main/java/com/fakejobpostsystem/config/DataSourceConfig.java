@@ -41,8 +41,9 @@ public class DataSourceConfig {
                     .replaceFirst("^postgresql://", "http://");
             URI uri = new URI(normalizedUrl);
 
+            int port = uri.getPort() == -1 ? 5432 : uri.getPort();
             String jdbcUrl = "jdbc:postgresql://" + uri.getHost()
-                    + ":" + uri.getPort()
+                    + ":" + port
                     + uri.getPath();
 
             String username = configuredUsername;
