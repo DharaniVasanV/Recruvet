@@ -3,7 +3,9 @@ package com.fakejobpostsystem.security;
 import java.io.IOException;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +15,7 @@ import com.fakejobpostsystem.repository.UserRepository;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 @Component
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
@@ -41,7 +44,16 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 .orElseGet(User::new);
         user.setEmail(normalizedEmail);
         user.setGoogleId(OAuth2UserInfo.getGoogleId(oauthUser));
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        AppUserDetails userDetails = new AppUserDetails(savedUser);
+        UsernamePasswordAuthenticationToken appAuthentication = new UsernamePasswordAuthenticationToken(
+                userDetails,
+                null,
+                userDetails.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(appAuthentication);
+        HttpSession session = request.getSession(true);
+        session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 
         response.sendRedirect("/dashboard");
     }

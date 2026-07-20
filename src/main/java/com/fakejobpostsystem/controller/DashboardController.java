@@ -63,6 +63,9 @@ public class DashboardController {
     @GetMapping("/dashboard")
     public String dashboard(Authentication authentication, Model model) {
         User user = currentUserService.requireUser(authentication);
+        if ("ROLE_ADMIN".equals(user.getRole())) {
+            return "redirect:/admin/outcome-reports";
+        }
         if ("ROLE_TPO".equals(user.getRole())) {
             return "redirect:/tpo/dashboard";
         }
